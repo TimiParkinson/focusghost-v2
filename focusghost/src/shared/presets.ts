@@ -24,6 +24,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   ttsEnabled: false,
   ttsVolume: 0.6,
   demoMode: false,
+  anchorPosition: null,
+  calendarEnabled: false,
+  calendarAutoCreate: true,
 };
 
 export function applyPreset(preset: SensitivityPreset, current: AppSettings): AppSettings {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import gsap from 'gsap';
   import {
     screen,
     collapsed,
@@ -24,6 +25,8 @@
   import CategoryEditor from './screens/CategoryEditor.svelte';
   import CollapsedBar from './components/CollapsedBar.svelte';
   import Header from './components/Header.svelte';
+
+  let shellEl: HTMLDivElement | undefined = $state();
 
   onMount(() => {
     const offs: Array<() => void> = [];
@@ -79,6 +82,15 @@
       applyAccentClass(s.accent);
     });
 
+    // Morph: panel scales in from top-right (where the anchor lives).
+    if (shellEl) {
+      gsap.fromTo(
+        shellEl,
+        { opacity: 0, scale: 0.85, transformOrigin: 'top right' },
+        { opacity: 1, scale: 1, duration: 0.28, ease: 'back.out(1.6)' },
+      );
+    }
+
     return () => offs.forEach((o) => o());
   });
 
@@ -98,7 +110,7 @@
   <CollapsedBar />
 {:else}
   <div class="h-screen w-screen p-3" data-testid="app-root">
-    <div class="shell h-full flex flex-col">
+    <div class="shell h-full flex flex-col" bind:this={shellEl}>
       <Header />
       <div class="flex-1 overflow-hidden">
         {#if $screen === 'task'}

@@ -1,23 +1,18 @@
-appId: com.focusghost.app
-productName: FocusGhost
-
 directories:
   output: release
-
+  buildResources: build
+appId: com.focusghost.app
+productName: FocusGhost
 files:
-  - out/**/*
-  - package.json
-  - '!**/*.map'
-
+  - filter:
+      - out/**/*
+      - package.json
+      - '!**/*.map'
 asar: true
-
 asarUnpack:
   - '**/node_modules/active-win/**/*'
-
 publish:
   provider: github
-
-# ---- macOS ----
 mac:
   category: public.app-category.productivity
   target:
@@ -34,18 +29,15 @@ mac:
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: false
-
 dmg:
   sign: false
   contents:
     - x: 130
-      y: 220
+      'y': 220
     - x: 410
-      y: 220
+      'y': 220
       type: link
       path: /Applications
-
-# ---- Windows ----
 win:
   target:
     - target: nsis
@@ -58,15 +50,12 @@ win:
   signingHashAlgorithms:
     - sha256
   rfc3161TimeStampServer: http://timestamp.digicert.com
-
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   createStartMenuShortcut: true
-
-# ---- Linux ----
 linux:
   category: Office
   target:
@@ -89,3 +78,4 @@ linux:
     your declared task, and surfaces calm, AI-generated nudges from a
     friendly ghost mascot. Includes Stuck Mode, focus streaks, and
     session history.
+electronVersion: 30.5.1

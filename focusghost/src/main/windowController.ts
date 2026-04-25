@@ -205,8 +205,10 @@ export class WindowController extends EventEmitter {
 
   private createAnchor(): void {
     const display = electronScreen.getPrimaryDisplay();
-    const x = Math.round(display.workArea.x + display.workArea.width - ANCHOR_SIZE - ANCHOR_MARGIN);
-    const y = Math.round(display.workArea.y + ANCHOR_MARGIN);
+    const saved = this.settings.anchorPosition;
+    const x = saved?.x ??
+      Math.round(display.workArea.x + display.workArea.width - ANCHOR_SIZE - ANCHOR_MARGIN);
+    const y = saved?.y ?? Math.round(display.workArea.y + ANCHOR_MARGIN);
 
     this.anchor = new BrowserWindow({
       width: ANCHOR_SIZE,
@@ -236,6 +238,18 @@ export class WindowController extends EventEmitter {
     if (process.platform === 'darwin') this.anchor.setHiddenInMissionControl?.(true);
     // start passive (click-through)
     this.anchor.setIgnoreMouseEvents(true, { forward: true });
+
+    // Persist anchor position on move (debounced to avoid spamming electron-store).
+    let moveTimer: NodeJS.Timeout | null = null;
+    this.anchor.on('move', () => {
+      if (moveTimer) clearTimeout(moveTimer);
+      moveTimer = setTimeout(() => {
+        const b = this.anchor?.getBounds();
+        if (!b) return;
+        this.emit('anchor:moved', { x: b.x, y: b.y });
+      }, 250);
+    });
+
     void this.loadSurface(this.anchor, 'anchor');
   }
 

@@ -56,14 +56,26 @@
   }
 
   function handleClick(): void {
-    void window.api.anchorClick();
+    // morph: tween the disc out before main collapses the window.
+    const disc = document.querySelector('.anchor-disc');
+    if (disc) {
+      gsap.to(disc, {
+        scale: 1.35,
+        opacity: 0,
+        duration: 0.18,
+        ease: 'power3.out',
+        onComplete: () => void window.api.anchorClick(),
+      });
+    } else {
+      void window.api.anchorClick();
+    }
   }
 
   let drifting = $derived($stats?.currentAppCategory === AppCategory.DISTRACTION);
 </script>
 
 <div
-  class="anchor-root"
+  class="anchor-root drag"
   role="button"
   tabindex="0"
   onmouseenter={handleEnter}
@@ -74,7 +86,7 @@
   style="opacity: {hovering ? 1 : 0.55}"
 >
   <div class="anchor-pulse" bind:this={pulseEl}></div>
-  <div class="anchor-disc">
+  <div class="anchor-disc no-drag">
     <Ghost size={32} drifting={drifting} state={$sessionState} />
   </div>
   {#if $sessionState === SessionState.ACTIVE && $stats}
@@ -89,6 +101,12 @@
     background: transparent;
     margin: 0;
     height: 100%;
+  }
+  .drag {
+    -webkit-app-region: drag;
+  }
+  .no-drag {
+    -webkit-app-region: no-drag;
   }
   .anchor-root {
     position: relative;

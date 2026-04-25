@@ -2,6 +2,7 @@
   import { stats } from '../stores';
   import { AppCategory, DriftRisk } from '../../shared/types';
   import Ghost from '../components/Ghost.svelte';
+  import InlineNudge from '../components/InlineNudge.svelte';
 
   function fmt(ms: number): string {
     const total = Math.max(0, Math.round(ms / 1000));
@@ -41,6 +42,7 @@
   </div>
 {:else}
   <div class="h-full overflow-y-auto px-5 py-5 space-y-4" data-testid="screen-active">
+    <InlineNudge />
     <div class="flex items-start justify-between">
       <div>
         <div class="label">CURRENT TASK</div>

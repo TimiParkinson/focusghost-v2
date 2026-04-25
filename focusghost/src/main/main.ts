@@ -430,6 +430,9 @@ function bootController(): void {
   );
   controller.init();
   controller.on('mode', (m) => broadcast(IPC.WINDOW_MODE_CHANGED, m));
+  controller.on('anchor:moved', (pos: { x: number; y: number }) => {
+    updateSettings({ anchorPosition: pos });
+  });
 }
 
 // React to session FSM transitions in window-land.

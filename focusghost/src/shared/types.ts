@@ -129,6 +129,9 @@ export interface AppSettings {
   ttsEnabled: boolean;
   ttsVolume: number;
   demoMode: boolean;
+  anchorPosition: { x: number; y: number } | null;
+  calendarEnabled: boolean;
+  calendarAutoCreate: boolean;
 }
 
 export interface StreakInfo {
