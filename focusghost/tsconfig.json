@@ -9,18 +9,18 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
-    "types": ["node"],
+    "types": ["node", "svelte"],
     "baseUrl": ".",
     "paths": {
       "@shared/*": ["src/shared/*"],
       "@main/*": ["src/main/*"],
       "@renderer/*": ["src/renderer/*"]
     },
-    "outDir": ".vite/build",
-    "noEmit": false
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["node_modules", ".vite", "out"]
+  "include": ["src/**/*.ts", "src/**/*.svelte"],
+  "exclude": ["node_modules", "out", "release", "dist"]
 }

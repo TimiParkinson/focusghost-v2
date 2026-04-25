@@ -6,10 +6,11 @@ Build the FocusGhost desktop app strictly per the Trello board (`create-focusgho
 
 ## Stack & architecture
 
-- Electron Forge + Vite + React 18 + TypeScript + Tailwind CSS
+- **electron-vite** + **Svelte 5** (runes) + **TypeScript** + **Tailwind CSS** *(migrated from Electron Forge + React on 2026-02-26)*
+- **electron-builder** — DMG + zip (macOS), NSIS + zip (Windows), AppImage + deb + rpm (Linux), code-signing wired via `CSC_LINK` / `CSC_KEY_PASSWORD` env vars
 - electron-store (local persistence), active-win (window polling)
 - @google/generative-ai (Gemini 2.5 Flash, main-process only)
-- GSAP (mascot float/blink + screen entrance), Zustand (renderer state), lucide-react (icons)
+- GSAP (mascot float/blink + screen entrance), Svelte writable stores (renderer state), lucide-svelte (icons)
 - IPC: contextBridge in `src/main/preload.ts`, channel constants + payload typings in `src/shared/ipc.ts`
 
 ## User personas
@@ -44,6 +45,16 @@ Build the FocusGhost desktop app strictly per the Trello board (`create-focusgho
 - **Cross-session focus streak tracking** — `src/main/streaks.ts` computes current + longest streak from saved sessions (qualifying threshold = 10 min focus per day) and a 30-day heatmap. New IPC channel `streak:get`.
 - **Custom app category editor UI** — `screens/CategoryEditor.tsx` with search, "Add app" form for unknown apps, and per-app FOCUS / RESEARCH / DISTRACTION / UNKNOWN pills; CUSTOM badge marks overrides. Wired through new IPC channels `categories:get|set|knownApps`.
 - **Cross-platform builds** — `forge.config.ts` extended with `MakerDMG` (macOS), `MakerZIP` for darwin+linux, `MakerSquirrel` (Windows), `MakerDeb` + `MakerRpm` (Linux). New scripts `make:mac`, `make:win`, `make:linux`. README documents Wayland fallback to manual mode.
+
+### Migration sprint (2026-02-26) ✅
+- **Build tool**: `@electron-forge/plugin-vite` → `electron-vite` (single `electron.vite.config.ts` with main / preload / renderer entries; output → `./out`).
+- **Renderer framework**: React 18 + JSX → **Svelte 5** with runes (`$state`, `$derived`, `$effect`, `$props`). All 14 components/screens rewritten as `.svelte`. Zustand → Svelte writable stores (`stores.ts`). lucide-react → lucide-svelte.
+- **Packager**: Electron Forge → `electron-builder` (`electron-builder.yml`). Adds **AppImage** to Linux output. Code-signing wired via env vars:
+  - macOS: `CSC_LINK` (path or base64 of .p12) + `CSC_KEY_PASSWORD`, hardened runtime + entitlements at `build/entitlements.mac.plist`. Notarization toggled by `NOTARIZE=true` + `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID`.
+  - Windows: `CSC_LINK` (.pfx) + `CSC_KEY_PASSWORD`, SHA-256 + DigiCert RFC3161 timestamp.
+- **Verified**: `svelte-check` 0 errors / 2 warnings, full E2E browser test (task → active session with sim switches → recap → history → categories with override) all working with identical visual fidelity to React build.
+- Bug fixed during migration: auto-route effect was bouncing user back to recap on every screen change while in RECAP state — now only triggers on state transition.
+
 - `package.json` with Electron Forge + Vite + React + TS + Tailwind (Trello requires `npm init electron-app@latest` — used same template deps).
 - `src/shared/ipc.ts` — channel constants + typed `InvokeMap` and `EventMap` + `FocusGhostAPI` bridge contract.
 - `src/main/preload.ts` — contextBridge exposes `window.api` to renderer.

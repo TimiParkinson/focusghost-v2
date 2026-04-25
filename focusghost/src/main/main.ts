@@ -45,13 +45,7 @@ import { createDemoMode } from './demoMode';
 // Load .env from app root (for local dev). In packaged app users can set env at OS level.
 loadDotenv({ path: path.join(process.cwd(), '.env') });
 
-// Squirrel installer guard (Windows)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  if (require('electron-squirrel-startup')) app.quit();
-} catch {
-  /* not on windows */
-}
+// Squirrel installer guard removed — electron-builder handles installer lifecycle on its own.
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string | undefined;
@@ -426,10 +420,12 @@ function createWindow(): void {
   });
   win.setOpacity(settings.opacity ?? 1);
 
-  if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
+  if (process.env.ELECTRON_RENDERER_URL) {
+    void win.loadURL(process.env.ELECTRON_RENDERER_URL);
+  } else if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    void win.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    void win.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
   win.once('ready-to-show', () => win?.show());
   win.on('closed', () => (win = null));

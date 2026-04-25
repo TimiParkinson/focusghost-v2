@@ -1,17 +1,18 @@
 # FocusGhost
 
-> Desktop AI focus companion — Electron + React + TypeScript + Gemini.
+> Desktop AI focus companion — Electron + **Svelte** + TypeScript + Gemini.
 
 FocusGhost watches your active window in the background, learns when you're drifting from your declared task, and surfaces calm, AI-generated nudges from a friendly ghost mascot. When it notices you cycling between the same few apps for a long time it triggers **Stuck Mode** and asks Gemini to help you reframe + take three concrete next steps.
 
 ## Tech stack
 
-- **Electron Forge** + **Vite** + **React** + **TypeScript** + **Tailwind CSS**
+- **electron-vite** + **Svelte 5** (runes) + **TypeScript** + **Tailwind CSS**
+- **electron-builder** for cross-platform makers (DMG / NSIS / DEB / RPM / AppImage)
 - **electron-store** for local persistence (sessions, settings, app categories)
 - **active-win** for OS-level window polling
 - **@google/generative-ai** for Gemini calls (main process only — key never reaches renderer)
 - **GSAP** for mascot + screen entrance animations
-- **Zustand** for renderer state
+- Svelte writable stores for renderer state
 
 ## Architecture
 
@@ -37,11 +38,12 @@ src/
 │   ├── appCategories.ts    # FOCUS / RESEARCH / DISTRACTION patterns
 │   └── demoMode.ts         # scripted switch sequence for demos
 └── renderer/        # React UI
-    ├── App.tsx
+    ├── App.svelte
+    ├── main.ts             # Svelte 5 mount entry
+    ├── stores.ts           # writable stores (screen, session, chat, settings…)
     ├── api.ts              # window.api wrapper + browser-mock fallback
-    ├── store.ts            # zustand store
-    ├── components/         # Ghost mascot, ChatMessage, StuckCard, CollapsedBar, Header
-    └── screens/            # TaskDeclaration, ActiveSession, GhostChat, Recap, Settings
+    ├── components/         # Ghost.svelte, ChatMessage.svelte, StuckCard.svelte, CollapsedBar.svelte, Header.svelte
+    └── screens/            # TaskDeclaration.svelte, ActiveSession.svelte, GhostChat.svelte, Recap.svelte, Settings.svelte, History.svelte, CategoryEditor.svelte
 ```
 
 ## IPC contract (living document)
@@ -72,30 +74,32 @@ All channels are constants in `src/shared/ipc.ts` with typed payloads in `src/sh
 yarn install
 cp .env.example .env
 # put your Gemini key in .env (get one at https://aistudio.google.com/apikey)
-yarn start            # launches Electron with hot-reload
-yarn start:demo       # demo mode (scripted switches + auto nudge/stuck/end)
+yarn dev              # launches Electron with hot-reload (electron-vite)
+yarn dev:demo         # demo mode (scripted switches + auto nudge/stuck/end)
+yarn build            # bundles main + preload + renderer into ./out
+yarn check            # svelte-check type-check
 ```
 
 ### Build installers
 
-FocusGhost ships builds for **macOS**, **Windows**, and major **Linux** distributions. Build on the matching host OS for best results — Electron Forge cannot cross-compile DMGs from Linux/Windows or Squirrel `.exe` installers from macOS without extra tooling.
+FocusGhost ships builds for **macOS**, **Windows**, and major **Linux** distributions via `electron-builder`. Build on the matching host OS for best results.
 
 ```bash
-yarn make:mac     # produces .dmg + .zip in ./out/make
-yarn make:win     # produces Squirrel .exe installer
-yarn make:linux   # produces .deb + .rpm
+yarn make:mac     # produces .dmg + .zip in ./release
+yarn make:win     # produces NSIS .exe installer + portable .zip
+yarn make:linux   # produces AppImage + .deb + .rpm
 yarn make         # produce everything available for the current host
 ```
 
-Maker matrix (configured in `forge.config.ts`):
+Maker matrix (configured in `electron-builder.yml`):
 
 | Platform | Format | Maker |
 | --- | --- | --- |
-| macOS (Intel + Apple Silicon) | `.dmg`, `.zip` | `@electron-forge/maker-dmg`, `@electron-forge/maker-zip` |
-| Windows (10 / 11) | Squirrel `.exe` installer | `@electron-forge/maker-squirrel` |
-| Debian / Ubuntu / Pop!_OS / Mint | `.deb` | `@electron-forge/maker-deb` |
-| Fedora / RHEL / CentOS | `.rpm` | `@electron-forge/maker-rpm` |
-| Linux portable | `.zip` | `@electron-forge/maker-zip` |
+| macOS (Intel + Apple Silicon) | `.dmg`, `.zip` | electron-builder `dmg`, `zip` |
+| Windows (10 / 11) | NSIS `.exe` installer + portable `.zip` | electron-builder `nsis`, `zip` |
+| Debian / Ubuntu / Pop!_OS / Mint | `.deb` | electron-builder `deb` |
+| Fedora / RHEL / CentOS | `.rpm` | electron-builder `rpm` |
+| Linux portable / generic | `.AppImage` | electron-builder `AppImage` |
 
 ### Platform notes
 

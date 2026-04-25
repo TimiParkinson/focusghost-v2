@@ -81,3 +81,4 @@ memory/test_credentials.md
 # Mobile development
 android-sdk/focusghost/node_modules/electron/dist/electron
 focusghost/node_modules/electron/dist/electron
+node_modules/electron/dist/electron
