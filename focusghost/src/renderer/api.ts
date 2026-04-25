@@ -232,6 +232,14 @@ export function ensureBrowserMockApi(): void {
       emit('window:collapsedState', next);
       return next;
     },
+    setMode: async (mode) => emit('window:modeChanged', mode),
+    expand: async () => emit('window:modeChanged', 'panel'),
+    collapse: async () => emit('window:modeChanged', 'anchor'),
+    pin: async () => {},
+    anchorHover: async () => {},
+    anchorClick: async () => emit('window:modeChanged', 'panel'),
+    dismissNudge: async () => {},
+    openPanelFromNudge: async () => emit('window:modeChanged', 'panel'),
     devSimulateSwitch: async (app) => {
       snap = {
         ...snap,
@@ -266,6 +274,7 @@ export function ensureBrowserMockApi(): void {
     onChatReply: (cb) => on('chat:reply', cb as any),
     onSettingsChanged: (cb) => on('settings:changed', cb as any),
     onCollapsedState: (cb) => on('window:collapsedState', cb as any),
+    onModeChanged: (cb) => on('window:modeChanged', cb as any),
   };
 
   (window as any).api = api;

@@ -18,33 +18,57 @@ FocusGhost watches your active window in the background, learns when you're drif
 
 ```
 src/
-├── shared/          # IPC contract + cross-process types + sensitivity presets
-│   ├── ipc.ts
-│   ├── types.ts
-│   └── presets.ts
-├── main/            # Electron main process
-│   ├── main.ts             # entry — wires modules + IPC handlers
-│   ├── preload.ts          # contextBridge exposes window.api
-│   ├── windowTracker.ts    # active-win polling loop (1500ms)
-│   ├── sessionMachine.ts   # FSM: IDLE ↔ ACTIVE ↔ DRIFTING ↔ INACTIVE ↔ RECAP
-│   ├── statsTracker.ts     # per-app time + switch counter
+├── shared/                    # IPC contract + types + presets (cross-process)
+├── main/                      # Electron main process
+│   ├── main.ts                # entry — wires session modules + IPC handlers
+│   ├── windowController.ts    # owns 3 BrowserWindows + WindowMode FSM
+│   ├── preload.ts             # contextBridge → window.api
+│   ├── windowTracker.ts       # active-win polling
+│   ├── sessionMachine.ts      # IDLE ↔ ACTIVE ↔ DRIFTING ↔ INACTIVE → RECAP
+│   ├── statsTracker.ts        # per-app time + switches
 │   ├── inactivityTimer.ts
-│   ├── driftScorer.ts      # LOW / MEDIUM / HIGH risk
-│   ├── stuckDetector.ts    # debugging-loop detection
-│   ├── nudgeEngine.ts      # cooldown-aware nudge trigger
-│   ├── gemini.ts           # Gemini SDK wrapper + offline fallback
-│   ├── prompts.ts          # all prompt templates
-│   ├── persistence.ts      # electron-store schema
-│   ├── appCategories.ts    # FOCUS / RESEARCH / DISTRACTION patterns
-│   └── demoMode.ts         # scripted switch sequence for demos
-└── renderer/        # React UI
-    ├── App.svelte
-    ├── main.ts             # Svelte 5 mount entry
-    ├── stores.ts           # writable stores (screen, session, chat, settings…)
-    ├── api.ts              # window.api wrapper + browser-mock fallback
-    ├── components/         # Ghost.svelte, ChatMessage.svelte, StuckCard.svelte, CollapsedBar.svelte, Header.svelte
-    └── screens/            # TaskDeclaration.svelte, ActiveSession.svelte, GhostChat.svelte, Recap.svelte, Settings.svelte, History.svelte, CategoryEditor.svelte
+│   ├── driftScorer.ts
+│   ├── stuckDetector.ts
+│   ├── nudgeEngine.ts
+│   ├── gemini.ts              # main-process-only Gemini wrapper
+│   ├── prompts.ts
+│   ├── persistence.ts         # electron-store
+│   ├── appCategories.ts
+│   ├── streaks.ts
+│   └── demoMode.ts
+└── renderer/                  # Svelte 5 + Tailwind
+    ├── index.html             # surface-aware: ?surface=anchor|panel|nudge
+    ├── main.ts                # mounts AnchorRoot / NudgeRoot / App by surface
+    ├── App.svelte             # panel root: tab nav + 7 screens
+    ├── AnchorRoot.svelte      # passive ambient pill surface
+    ├── NudgeRoot.svelte       # popup nudge surface
+    ├── stores.ts              # session / chat / settings writables
+    ├── window.ts              # window-mode store + readSurface()
+    ├── api.ts                 # window.api wrapper + browser-mock
+    ├── components/            # Ghost, Header, ChatMessage, StuckCard, CollapsedBar
+    └── screens/               # TaskDeclaration, ActiveSession, GhostChat, Recap, Settings, History, CategoryEditor
 ```
+
+### Multi-surface window architecture
+
+`WindowController` (main process) owns three transparent frameless `BrowserWindow`s and a `WindowMode` FSM:
+
+| Mode | Surface | Behaviour |
+| --- | --- | --- |
+| `anchor` | 56×56 ambient pill, top-right | Click-through when passive (`setIgnoreMouseEvents(true, { forward: true })`). Hover restores interactivity. Click expands to panel. |
+| `panel` | 480×720 main UI | Opens at the anchor's position. Auto-collapses to anchor on `blur` after 180 ms (debounced) unless pinned. |
+| `popupNudge` | 360×160 transient | Separate `focusable: false` window. Auto-dismiss timer is computed from text length: `max(2200ms, min(7000ms, words / 220 * 60000))`. Hover pauses dismiss. Click opens panel. |
+| `inlineNudge` | rendered inside panel | UI-only — no separate window. |
+| `hidden` | all 3 hidden | Used for full quiet mode. |
+
+The renderer subscribes to `window:modeChanged` and never calls `BrowserWindow` APIs directly — all OS-level behaviour is owned by `WindowController`. Each surface loads `index.html?surface=...`; `main.ts` reads the query param and mounts the matching root component.
+
+### macOS-utility behaviour
+
+- `frame: false`, `transparent: true`, `alwaysOnTop: true`, `skipTaskbar: true`, `hiddenInMissionControl: true`, `fullscreenable: false`
+- Anchor + nudge use `setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })`
+- Nudge calls `showInactive()` (no focus theft) and is `focusable: false`
+- Reading-time auto-dismiss instead of fixed timeout
 
 ## IPC contract (living document)
 

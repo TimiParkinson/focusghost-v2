@@ -1,8 +1,9 @@
 // Electron main entry. Wires all modules: tracker, FSM, stats, nudge, stuck, gemini, IPC.
-import { app, BrowserWindow, ipcMain, screen } from 'electron';
+// Window architecture (anchor/panel/nudge) is delegated to WindowController.
+import { app, ipcMain } from 'electron';
 import path from 'node:path';
 import { config as loadDotenv } from 'dotenv';
-import { IPC } from '../shared/ipc';
+import { IPC, type WindowMode } from '../shared/ipc';
 import { SessionMachine } from './sessionMachine';
 import { StatsTracker } from './statsTracker';
 import { WindowTracker } from './windowTracker';
@@ -36,24 +37,21 @@ import {
   DriftRisk,
   SessionState,
   type ChatMessage,
+  type NudgePayload,
   type SessionConfig,
   type SessionRecord,
   type SessionStatsSnapshot,
 } from '../shared/types';
 import { createDemoMode } from './demoMode';
+import { WindowController } from './windowController';
 
 // Load .env from app root (for local dev). In packaged app users can set env at OS level.
 loadDotenv({ path: path.join(process.cwd(), '.env') });
 
-// Squirrel installer guard removed — electron-builder handles installer lifecycle on its own.
-
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
-declare const MAIN_WINDOW_VITE_NAME: string | undefined;
 
-let win: BrowserWindow | null = null;
-let collapsed = false;
-const NORMAL_SIZE = { width: 480, height: 720 };
-const COLLAPSED_SIZE = { width: 480, height: 44 };
+let controller: WindowController | null = null;
+let collapsedBar = false;
 
 // ---- shared session runtime ----
 const machine = new SessionMachine();
@@ -74,7 +72,8 @@ let demoCtl: { start: () => void; stop: () => void } | null = null;
 
 // ---- helpers ----
 function broadcast<T>(channel: string, payload: T): void {
-  win?.webContents.send(channel, payload);
+  const wc = controller?.panelWebContents();
+  wc?.send(channel, payload);
 }
 
 function buildSnapshot(): SessionStatsSnapshot {
@@ -237,8 +236,8 @@ async function endSession(): Promise<SessionRecord> {
   return record;
 }
 
-async function fireNudge(reason: 'switch-drift' | 'inactivity' | 'check-in' | 'sprint-offer'): Promise<void> {
-  if (!sessionConfig) return;
+async function fireNudge(reason: 'switch-drift' | 'inactivity' | 'check-in' | 'sprint-offer'): Promise<NudgePayload | null> {
+  if (!sessionConfig) return null;
   const snap = buildSnapshot();
   const focusMin = Math.round(snap.focusMs / 60_000);
   let user: string;
@@ -260,13 +259,16 @@ async function fireNudge(reason: 'switch-drift' | 'inactivity' | 'check-in' | 's
   });
 
   const id = `n_${Date.now()}`;
-  broadcast(IPC.NUDGE_TRIGGER, {
+  const payload: NudgePayload = {
     id,
     text,
     reason,
     ctas: { accept: 'On it', dismiss: 'Not now' },
-  });
+  };
+  // Panel renderer still gets the inline event for the chat log.
+  broadcast(IPC.NUDGE_TRIGGER, payload);
   pushChat({ id, variant: 'nudge', text, timestamp: Date.now(), meta: { reason } });
+  return payload;
 }
 
 async function firePatternNotice(): Promise<void> {
@@ -302,7 +304,11 @@ inactivity.on('inactive', (p) => {
 
 inactivity.on('resume', () => machine.send({ type: 'FOCUS' }));
 
-nudges.on('nudge', (n: { reason: any }) => void fireNudge(n.reason));
+nudges.on('nudge', (n: { reason: any }) => {
+  void fireNudge(n.reason).then((payload) => {
+    if (payload) controller?.showNudge(payload);
+  });
+});
 
 stuck.on('stuck', (p) => broadcast(IPC.STUCK_ACTIVATE, { id: `st_${Date.now()}`, ...p }));
 
@@ -317,8 +323,9 @@ ipcMain.handle(IPC.SETTINGS_GET, () => getSettings());
 ipcMain.handle(IPC.SETTINGS_UPDATE, (_e, patch) => {
   const next = updateSettings(patch);
   inactivity.setThreshold(next.inactivityThresholdSec);
-  if (typeof patch.opacity === 'number') win?.setOpacity(patch.opacity);
-  if (typeof patch.alwaysOnTop === 'boolean') win?.setAlwaysOnTop(patch.alwaysOnTop);
+  if (typeof patch.opacity === 'number' || typeof patch.alwaysOnTop === 'boolean') {
+    controller?.updateSettings(next);
+  }
   broadcast(IPC.SETTINGS_CHANGED, next);
   return next;
 });
@@ -375,66 +382,70 @@ ipcMain.handle(IPC.STUCK_SUBMIT, async (_e, { description }: { description: stri
 });
 
 ipcMain.handle(IPC.WINDOW_SET_OPACITY, (_e, value: number) => {
-  win?.setOpacity(Math.max(0.3, Math.min(1, value)));
-  updateSettings({ opacity: value });
+  const v = Math.max(0.3, Math.min(1, value));
+  updateSettings({ opacity: v });
+  controller?.updateSettings(getSettings());
 });
 ipcMain.handle(IPC.WINDOW_SET_ALWAYS_ON_TOP, (_e, v: boolean) => {
-  win?.setAlwaysOnTop(v);
   updateSettings({ alwaysOnTop: v });
+  controller?.updateSettings(getSettings());
 });
 ipcMain.handle(IPC.WINDOW_TOGGLE_COLLAPSED, () => {
-  if (!win) return false;
-  collapsed = !collapsed;
-  const size = collapsed ? COLLAPSED_SIZE : NORMAL_SIZE;
-  win.setSize(size.width, size.height, true);
-  win.setResizable(!collapsed);
-  broadcast(IPC.WINDOW_COLLAPSED_STATE, collapsed);
-  return collapsed;
+  collapsedBar = !collapsedBar;
+  controller?.setCollapsedBar(collapsedBar);
+  broadcast(IPC.WINDOW_COLLAPSED_STATE, collapsedBar);
+  return collapsedBar;
 });
+
+// ---- multi-surface window controller ----
+ipcMain.handle(IPC.WINDOW_SET_MODE, (_e, mode: WindowMode) => controller?.setMode(mode));
+ipcMain.handle(IPC.WINDOW_EXPAND, () => controller?.expand());
+ipcMain.handle(IPC.WINDOW_COLLAPSE, () => controller?.collapse());
+ipcMain.handle(IPC.WINDOW_PIN, (_e, pinned: boolean) => controller?.setPinned(pinned));
+ipcMain.handle(IPC.ANCHOR_HOVER, (_e, hovering: boolean) => controller?.setAnchorHover(hovering));
+ipcMain.handle(IPC.ANCHOR_CLICK, () => controller?.anchorClicked());
+ipcMain.handle(IPC.NUDGE_DISMISS, () => controller?.dismissNudge());
+ipcMain.handle(IPC.NUDGE_OPEN_PANEL, () => {
+  controller?.dismissNudge();
+  controller?.expand();
+});
+
 ipcMain.handle(IPC.DEV_SIMULATE_SWITCH, (_e, { app, title }: { app: string; title?: string }) => {
   tracker.injectSwitch(app, title ?? '');
 });
 
-// ---- window ----
-function createWindow(): void {
+// ---- window bootstrap via controller ----
+function bootController(): void {
   const settings = getSettings();
-  const display = screen.getPrimaryDisplay();
-  const x = Math.round(display.workArea.x + display.workArea.width - NORMAL_SIZE.width - 24);
-  const y = Math.round(display.workArea.y + 80);
-  win = new BrowserWindow({
-    width: NORMAL_SIZE.width,
-    height: NORMAL_SIZE.height,
-    x,
-    y,
-    frame: false,
-    transparent: true,
-    backgroundColor: '#00000000',
-    alwaysOnTop: settings.alwaysOnTop,
-    resizable: true,
-    show: false,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      sandbox: false,
+  const rendererUrl =
+    process.env.ELECTRON_RENDERER_URL ??
+    (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' ? MAIN_WINDOW_VITE_DEV_SERVER_URL : null);
+  controller = new WindowController(
+    {
+      rendererUrl,
+      rendererFile: path.join(__dirname, '../renderer/index.html'),
+      preloadPath: path.join(__dirname, '../preload/preload.js'),
     },
-  });
-  win.setOpacity(settings.opacity ?? 1);
-
-  if (process.env.ELECTRON_RENDERER_URL) {
-    void win.loadURL(process.env.ELECTRON_RENDERER_URL);
-  } else if (typeof MAIN_WINDOW_VITE_DEV_SERVER_URL !== 'undefined' && MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    void win.loadFile(path.join(__dirname, '../renderer/index.html'));
-  }
-  win.once('ready-to-show', () => win?.show());
-  win.on('closed', () => (win = null));
+    settings,
+  );
+  controller.init();
+  controller.on('mode', (m) => broadcast(IPC.WINDOW_MODE_CHANGED, m));
 }
 
-app.whenReady().then(createWindow);
+// React to session FSM transitions in window-land.
+machine.on('change', (next: SessionState) => controller?.reactToSession(next));
+
+// When NudgeEngine emits a nudge in main, push it to the popup window.
+nudges.on('nudge', (n: { reason: any }) => {
+  void fireNudge(n.reason).then((payload) => {
+    if (payload) controller?.showNudge(payload);
+  });
+});
+
+app.whenReady().then(bootController);
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (!controller) bootController();
 });

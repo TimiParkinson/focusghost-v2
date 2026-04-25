@@ -1,8 +1,11 @@
-// Renderer entry — mounts Svelte App and applies persisted accent on boot.
+// Renderer entry — surface-aware mount: anchor / panel / nudge.
 import { mount } from 'svelte';
 import App from './App.svelte';
+import AnchorRoot from './AnchorRoot.svelte';
+import NudgeRoot from './NudgeRoot.svelte';
 import './index.css';
 import { applyAccentClass, ensureBrowserMockApi } from './api';
+import { readSurface } from './window';
 
 ensureBrowserMockApi();
 
@@ -11,6 +14,12 @@ window.api
   .then((s) => applyAccentClass(s.accent))
   .catch(() => {});
 
-const app = mount(App, { target: document.getElementById('root')! });
+const surface = readSurface();
+const target = document.getElementById('root')!;
 
-export default app;
+let component: unknown;
+if (surface === 'anchor') component = mount(AnchorRoot, { target });
+else if (surface === 'nudge') component = mount(NudgeRoot, { target });
+else component = mount(App, { target });
+
+export default component;

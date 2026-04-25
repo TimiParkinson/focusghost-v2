@@ -47,6 +47,17 @@ Build the FocusGhost desktop app strictly per the Trello board (`create-focusgho
 - **Cross-platform builds** — `forge.config.ts` extended with `MakerDMG` (macOS), `MakerZIP` for darwin+linux, `MakerSquirrel` (Windows), `MakerDeb` + `MakerRpm` (Linux). New scripts `make:mac`, `make:win`, `make:linux`. README documents Wayland fallback to manual mode.
 
 ### Migration sprint (2026-02-26) ✅
+- React → Svelte 5 + electron-vite + electron-builder (see prior entry).
+
+### Window architecture sprint (2026-02-26) ✅
+- **`src/main/windowController.ts`** — owns three `BrowserWindow`s (anchor, panel, nudge) and a `WindowMode` FSM (`anchor | panel | inlineNudge | popupNudge | hidden`). All OS-level behaviour (positioning, opacity, alwaysOnTop, click-through, blur-collapse debouncing, popup auto-dismiss) lives here.
+- **Anchor surface**: 56×56 transparent frameless pill, alwaysOnTop floating, click-through-while-passive via `setIgnoreMouseEvents(true, { forward: true })`. Hover restores interactivity. New `AnchorRoot.svelte`.
+- **Panel surface**: opens at anchor location; collapses on blur after 180 ms unless pinned.
+- **Popup nudge**: separate `focusable: false` `BrowserWindow` that uses `showInactive()` to avoid focus theft. Auto-dismiss based on reading-time formula `max(2200, min(7000, words/220 * 60000))`. Hover pauses dismiss. New `NudgeRoot.svelte`.
+- **Surface routing**: single `index.html` is loaded with `?surface=anchor|panel|nudge` query param; `main.ts` mounts the matching root component.
+- **IPC channels added**: `WINDOW_SET_MODE`, `WINDOW_EXPAND`, `WINDOW_COLLAPSE`, `WINDOW_PIN`, `ANCHOR_HOVER`, `ANCHOR_CLICK`, `NUDGE_DISMISS`, `NUDGE_OPEN_PANEL`, `WINDOW_MODE_CHANGED`.
+- **GitHub Actions release workflow** at `.github/workflows/release.yml` — matrix `[macos-latest, windows-latest, ubuntu-latest]` triggered on `v*.*.*` tag push, runs `yarn make:{mac|win|linux}`, uploads artifacts, opens a draft GitHub Release with auto-generated notes. Code-signing creds wired via secrets (`MAC_CSC_LINK`, `WIN_CSC_LINK`, `APPLE_ID`, etc.) — workflow runs unsigned today and turns on signing/notarization the moment those secrets are populated.
+- **Workspace cleanup**: removed unused `/app/frontend` (Emergent React scaffold) and `/app/backend` (FastAPI scaffold) — entire codebase now lives under `/app/focusghost/`.
 - **Build tool**: `@electron-forge/plugin-vite` → `electron-vite` (single `electron.vite.config.ts` with main / preload / renderer entries; output → `./out`).
 - **Renderer framework**: React 18 + JSX → **Svelte 5** with runes (`$state`, `$derived`, `$effect`, `$props`). All 14 components/screens rewritten as `.svelte`. Zustand → Svelte writable stores (`stores.ts`). lucide-react → lucide-svelte.
 - **Packager**: Electron Forge → `electron-builder` (`electron-builder.yml`). Adds **AppImage** to Linux output. Code-signing wired via env vars:

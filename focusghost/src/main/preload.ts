@@ -27,6 +27,14 @@ const api: FocusGhostAPI = {
   setOpacity: (v) => ipcRenderer.invoke(IPC.WINDOW_SET_OPACITY, v),
   setAlwaysOnTop: (v) => ipcRenderer.invoke(IPC.WINDOW_SET_ALWAYS_ON_TOP, v),
   toggleCollapsed: () => ipcRenderer.invoke(IPC.WINDOW_TOGGLE_COLLAPSED),
+  setMode: (mode) => ipcRenderer.invoke(IPC.WINDOW_SET_MODE, mode),
+  expand: () => ipcRenderer.invoke(IPC.WINDOW_EXPAND),
+  collapse: () => ipcRenderer.invoke(IPC.WINDOW_COLLAPSE),
+  pin: (pinned) => ipcRenderer.invoke(IPC.WINDOW_PIN, pinned),
+  anchorHover: (hovering) => ipcRenderer.invoke(IPC.ANCHOR_HOVER, hovering),
+  anchorClick: () => ipcRenderer.invoke(IPC.ANCHOR_CLICK),
+  dismissNudge: (id) => ipcRenderer.invoke(IPC.NUDGE_DISMISS, { id }),
+  openPanelFromNudge: (id) => ipcRenderer.invoke(IPC.NUDGE_OPEN_PANEL, { id }),
   devSimulateSwitch: (app, title) => ipcRenderer.invoke(IPC.DEV_SIMULATE_SWITCH, { app, title }),
 
   onSessionState: (cb) => on(IPC.SESSION_STATE, cb),
@@ -42,6 +50,7 @@ const api: FocusGhostAPI = {
   onChatReply: (cb) => on(IPC.CHAT_REPLY, cb),
   onSettingsChanged: (cb) => on(IPC.SETTINGS_CHANGED, cb),
   onCollapsedState: (cb) => on(IPC.WINDOW_COLLAPSED_STATE, cb),
+  onModeChanged: (cb) => on(IPC.WINDOW_MODE_CHANGED, cb),
 };
 
 contextBridge.exposeInMainWorld('api', api);
