@@ -12,12 +12,15 @@ import { StuckDetector } from './stuckDetector';
 import { scoreDrift } from './driftScorer';
 import { categorizeApp } from './appCategories';
 import {
+  clearSessions,
   getCategoryOverrides,
   getSettings,
   loadSessions,
   saveSession,
+  setCategoryOverride,
   updateSettings,
 } from './persistence';
+import { aggregateKnownApps, computeStreak } from './streaks';
 import { promptGemini } from './gemini';
 import {
   checkInNudge,
@@ -326,6 +329,14 @@ ipcMain.handle(IPC.SETTINGS_UPDATE, (_e, patch) => {
   return next;
 });
 ipcMain.handle(IPC.HISTORY_LIST, () => loadSessions());
+ipcMain.handle(IPC.HISTORY_CLEAR, () => clearSessions());
+ipcMain.handle(IPC.STREAK_GET, () => computeStreak(loadSessions()));
+ipcMain.handle(IPC.CATEGORIES_GET, () => getCategoryOverrides());
+ipcMain.handle(IPC.CATEGORIES_KNOWN_APPS, () => aggregateKnownApps(loadSessions()));
+ipcMain.handle(IPC.CATEGORIES_SET, (_e, { app: appName, category }) => {
+  setCategoryOverride(appName, category);
+  return getCategoryOverrides();
+});
 
 ipcMain.handle(IPC.CHAT_SEND, async (_e, { text }: { text: string }) => {
   const userMsg: ChatMessage = { id: `u_${Date.now()}`, variant: 'user', text, timestamp: Date.now() };

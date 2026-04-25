@@ -49,6 +49,10 @@ export function setCategoryOverride(appName: string, category: AppCategory): voi
   store.set('appCategories', overrides);
 }
 
+export function clearSessions(): void {
+  store.set('sessions', []);
+}
+
 export function getStorePath(): string {
   return store.path;
 }

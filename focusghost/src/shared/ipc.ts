@@ -3,15 +3,18 @@
 
 import type {
   ActiveWindowInfo,
+  AppCategory,
   AppSettings,
   ChatMessage,
   DriftRisk,
+  KnownApp,
   NudgePayload,
   PatternNoticePayload,
   SessionConfig,
   SessionRecord,
   SessionState,
   SessionStatsSnapshot,
+  StreakInfo,
   StuckPayload,
 } from './types';
 
@@ -58,6 +61,15 @@ export const IPC = {
 
   // History
   HISTORY_LIST: 'history:list',
+  HISTORY_CLEAR: 'history:clear',
+
+  // Streaks
+  STREAK_GET: 'streak:get',
+
+  // App categories
+  CATEGORIES_GET: 'categories:get',
+  CATEGORIES_SET: 'categories:set',
+  CATEGORIES_KNOWN_APPS: 'categories:knownApps',
 
   // Window controls
   WINDOW_SET_OPACITY: 'window:setOpacity',
@@ -79,6 +91,11 @@ export interface InvokeMap {
   [IPC.SETTINGS_GET]: { input: void; output: AppSettings };
   [IPC.SETTINGS_UPDATE]: { input: Partial<AppSettings>; output: AppSettings };
   [IPC.HISTORY_LIST]: { input: void; output: SessionRecord[] };
+  [IPC.HISTORY_CLEAR]: { input: void; output: void };
+  [IPC.STREAK_GET]: { input: void; output: StreakInfo };
+  [IPC.CATEGORIES_GET]: { input: void; output: Record<string, AppCategory> };
+  [IPC.CATEGORIES_SET]: { input: { app: string; category: AppCategory }; output: Record<string, AppCategory> };
+  [IPC.CATEGORIES_KNOWN_APPS]: { input: void; output: KnownApp[] };
   [IPC.CHAT_SEND]: { input: { text: string }; output: ChatMessage };
   [IPC.STUCK_SUBMIT]: { input: { description: string }; output: ChatMessage };
   [IPC.WINDOW_SET_OPACITY]: { input: number; output: void };
@@ -113,6 +130,11 @@ export interface FocusGhostAPI {
   getSettings: () => Promise<AppSettings>;
   updateSettings: (patch: Partial<AppSettings>) => Promise<AppSettings>;
   listHistory: () => Promise<SessionRecord[]>;
+  clearHistory: () => Promise<void>;
+  getStreak: () => Promise<StreakInfo>;
+  getCategories: () => Promise<Record<string, AppCategory>>;
+  setCategory: (app: string, category: AppCategory) => Promise<Record<string, AppCategory>>;
+  listKnownApps: () => Promise<KnownApp[]>;
   sendChat: (text: string) => Promise<ChatMessage>;
   submitStuck: (description: string) => Promise<ChatMessage>;
   setOpacity: (value: number) => Promise<void>;

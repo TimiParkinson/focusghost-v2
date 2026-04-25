@@ -1,6 +1,7 @@
 // Preload script — exposes a typed FocusGhostAPI to the renderer via contextBridge.
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPC, type FocusGhostAPI } from '../shared/ipc';
+import type { AppCategory } from '../shared/types';
 
 function on<T>(channel: string, cb: (payload: T) => void): () => void {
   const listener = (_evt: unknown, payload: T) => cb(payload);
@@ -15,6 +16,12 @@ const api: FocusGhostAPI = {
   getSettings: () => ipcRenderer.invoke(IPC.SETTINGS_GET),
   updateSettings: (patch) => ipcRenderer.invoke(IPC.SETTINGS_UPDATE, patch),
   listHistory: () => ipcRenderer.invoke(IPC.HISTORY_LIST),
+  clearHistory: () => ipcRenderer.invoke(IPC.HISTORY_CLEAR),
+  getStreak: () => ipcRenderer.invoke(IPC.STREAK_GET),
+  getCategories: () => ipcRenderer.invoke(IPC.CATEGORIES_GET),
+  setCategory: (app: string, category: AppCategory) =>
+    ipcRenderer.invoke(IPC.CATEGORIES_SET, { app, category }),
+  listKnownApps: () => ipcRenderer.invoke(IPC.CATEGORIES_KNOWN_APPS),
   sendChat: (text) => ipcRenderer.invoke(IPC.CHAT_SEND, { text }),
   submitStuck: (description) => ipcRenderer.invoke(IPC.STUCK_SUBMIT, { description }),
   setOpacity: (v) => ipcRenderer.invoke(IPC.WINDOW_SET_OPACITY, v),

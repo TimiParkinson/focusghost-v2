@@ -38,6 +38,7 @@ export function ensureBrowserMockApi(): void {
   let interval: number | null = null;
   const sessions: SessionRecord[] = [];
   const chat: ChatMessage[] = [];
+  const categoryOverrides: Record<string, AppCategory> = {};
 
   function blankSnap(): SessionStatsSnapshot {
     return {
@@ -141,6 +142,66 @@ export function ensureBrowserMockApi(): void {
       return settings;
     },
     listHistory: async () => sessions,
+    clearHistory: async () => {
+      sessions.length = 0;
+    },
+    getStreak: async () => {
+      // basic browser-mock streak
+      const today = new Date();
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
+      const days = sessions
+        .filter((s) => s.focusMs >= 10 * 60_000)
+        .map((s) => fmt(new Date(s.startedAt)));
+      const unique = Array.from(new Set(days));
+      return {
+        current: unique.includes(fmt(today)) ? 1 : 0,
+        longest: unique.length > 0 ? 1 : 0,
+        todayHasSession: unique.includes(fmt(today)),
+        recentDays: unique,
+        totalSessions: sessions.length,
+        totalFocusMs: sessions.reduce((a, s) => a + s.focusMs, 0),
+      };
+    },
+    getCategories: async () => categoryOverrides,
+    setCategory: async (app, category) => {
+      categoryOverrides[app] = category;
+      return { ...categoryOverrides };
+    },
+    listKnownApps: async () => {
+      const map = new Map<string, { totalMs: number; appearances: number }>();
+      for (const s of sessions) {
+        for (const [app, e] of Object.entries(s.appTimeMap)) {
+          const cur = map.get(app) ?? { totalMs: 0, appearances: 0 };
+          cur.totalMs += e.totalMs;
+          cur.appearances += 1;
+          map.set(app, cur);
+        }
+      }
+      // seed with a few common apps so the editor isn't empty in browser preview
+      const seeds: Record<string, AppCategory> = {
+        Code: AppCategory.FOCUS,
+        Chrome: AppCategory.RESEARCH,
+        Terminal: AppCategory.FOCUS,
+        Notion: AppCategory.FOCUS,
+        Twitter: AppCategory.DISTRACTION,
+        YouTube: AppCategory.DISTRACTION,
+        Slack: AppCategory.DISTRACTION,
+        Figma: AppCategory.FOCUS,
+      };
+      for (const k of Object.keys(seeds)) {
+        if (!map.has(k)) map.set(k, { totalMs: 0, appearances: 0 });
+      }
+      return Array.from(map.entries())
+        .map(([app, agg]) => ({
+          app,
+          totalMs: agg.totalMs,
+          appearances: agg.appearances,
+          defaultCategory: seeds[app] ?? AppCategory.UNKNOWN,
+          override: categoryOverrides[app],
+        }))
+        .sort((a, b) => b.totalMs - a.totalMs);
+    },
     sendChat: async (text) => {
       chat.push({ id: `u_${Date.now()}`, variant: 'user', text, timestamp: Date.now() });
       const msg: ChatMessage = {

@@ -74,8 +74,34 @@ cp .env.example .env
 # put your Gemini key in .env (get one at https://aistudio.google.com/apikey)
 yarn start            # launches Electron with hot-reload
 yarn start:demo       # demo mode (scripted switches + auto nudge/stuck/end)
-yarn make             # produce installers
 ```
+
+### Build installers
+
+FocusGhost ships builds for **macOS**, **Windows**, and major **Linux** distributions. Build on the matching host OS for best results — Electron Forge cannot cross-compile DMGs from Linux/Windows or Squirrel `.exe` installers from macOS without extra tooling.
+
+```bash
+yarn make:mac     # produces .dmg + .zip in ./out/make
+yarn make:win     # produces Squirrel .exe installer
+yarn make:linux   # produces .deb + .rpm
+yarn make         # produce everything available for the current host
+```
+
+Maker matrix (configured in `forge.config.ts`):
+
+| Platform | Format | Maker |
+| --- | --- | --- |
+| macOS (Intel + Apple Silicon) | `.dmg`, `.zip` | `@electron-forge/maker-dmg`, `@electron-forge/maker-zip` |
+| Windows (10 / 11) | Squirrel `.exe` installer | `@electron-forge/maker-squirrel` |
+| Debian / Ubuntu / Pop!_OS / Mint | `.deb` | `@electron-forge/maker-deb` |
+| Fedora / RHEL / CentOS | `.rpm` | `@electron-forge/maker-rpm` |
+| Linux portable | `.zip` | `@electron-forge/maker-zip` |
+
+### Platform notes
+
+- **macOS** — `active-win` requires **Accessibility** permission. On first launch, macOS will prompt you; grant access in *System Settings → Privacy & Security → Accessibility*. The transparent frameless window relies on the standard Electron vibrancy stack.
+- **Windows 10 / 11** — Works out of the box. Squirrel handles auto-update plumbing if you publish releases via `yarn publish`. SmartScreen may flag unsigned builds — code-signing certificate is recommended for distribution.
+- **Linux** — Tested against X11 sessions on Debian / Ubuntu / Fedora. **Wayland** sessions don't expose active window info to userspace tools, so `active-win` falls back to manual mode (you can still use FocusGhost — switches won't auto-detect; the simulate-switch dev button + scripted demo mode still work). If you're on GNOME Wayland, switch to "GNOME on Xorg" at the login screen for full functionality.
 
 ### Gemini key
 
@@ -86,6 +112,13 @@ Default model is `gemini-2.5-flash`. Override via `GEMINI_MODEL` in `.env`.
 ### macOS permissions
 
 `active-win` needs **Accessibility** permission on macOS — grant it in System Settings → Privacy & Security on first launch.
+
+## Backlog (now implemented)
+
+- ✅ Multi-session history view with collapsible per-session detail
+- ✅ Cross-session focus streak tracking + 30-day heatmap (qualifying = ≥10 min focus)
+- ✅ Custom app category editor UI (override + add custom apps)
+- ✅ Cross-platform makers (macOS DMG, Windows Squirrel, Linux DEB + RPM)
 
 ## Design system
 
@@ -105,7 +138,4 @@ Default model is `gemini-2.5-flash`. Override via `GEMINI_MODEL` in `.env`.
 
 ## Backlog (not yet implemented)
 
-- Multi-session history view
-- Cross-session focus streak tracking
-- Custom app category editor UI
-- Windows + Linux regression pass
+- Windows + Linux Wayland regression pass

@@ -130,3 +130,23 @@ export interface AppSettings {
   ttsVolume: number;
   demoMode: boolean;
 }
+
+export interface StreakInfo {
+  current: number;
+  longest: number;
+  todayHasSession: boolean;
+  /** ISO date strings (YYYY-MM-DD) for last 30 days that contain a qualifying session. */
+  recentDays: string[];
+  /** Total qualifying focus sessions on record. */
+  totalSessions: number;
+  /** Sum of focusMs across all sessions, in ms. */
+  totalFocusMs: number;
+}
+
+export interface KnownApp {
+  app: string;
+  totalMs: number;
+  appearances: number;
+  defaultCategory: AppCategory;
+  override?: AppCategory;
+}

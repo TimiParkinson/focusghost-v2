@@ -6,6 +6,8 @@ import ActiveSession from './screens/ActiveSession';
 import GhostChat from './screens/GhostChat';
 import Recap from './screens/Recap';
 import Settings from './screens/Settings';
+import History from './screens/History';
+import CategoryEditor from './screens/CategoryEditor';
 import CollapsedBar from './components/CollapsedBar';
 import Header from './components/Header';
 import { applyAccentClass } from './api';
@@ -80,6 +82,8 @@ export default function App(): JSX.Element {
           {ui.screen === 'chat' && <GhostChat />}
           {ui.screen === 'recap' && <Recap />}
           {ui.screen === 'settings' && <Settings />}
+          {ui.screen === 'history' && <History />}
+          {ui.screen === 'categories' && <CategoryEditor />}
         </div>
       </div>
     </div>

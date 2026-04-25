@@ -35,6 +35,15 @@ Build the FocusGhost desktop app strictly per the Trello board (`create-focusgho
 ## What's been implemented (2026-02-25)
 
 ### Sprint 1 — Core Engine ✅
+### Sprint 2 — UI & Chat ✅
+### Sprint 3 — Ghost AI ✅
+### Sprint 4 — Polish ✅
+
+### Backlog sprint (2026-02-26) ✅
+- **Multi-session history view** — `screens/History.tsx` lists every saved session with focus / drift bar, expandable detail showing 4-stat grid + ghost insight + top apps. Clear-all action with confirm guard.
+- **Cross-session focus streak tracking** — `src/main/streaks.ts` computes current + longest streak from saved sessions (qualifying threshold = 10 min focus per day) and a 30-day heatmap. New IPC channel `streak:get`.
+- **Custom app category editor UI** — `screens/CategoryEditor.tsx` with search, "Add app" form for unknown apps, and per-app FOCUS / RESEARCH / DISTRACTION / UNKNOWN pills; CUSTOM badge marks overrides. Wired through new IPC channels `categories:get|set|knownApps`.
+- **Cross-platform builds** — `forge.config.ts` extended with `MakerDMG` (macOS), `MakerZIP` for darwin+linux, `MakerSquirrel` (Windows), `MakerDeb` + `MakerRpm` (Linux). New scripts `make:mac`, `make:win`, `make:linux`. README documents Wayland fallback to manual mode.
 - `package.json` with Electron Forge + Vite + React + TS + Tailwind (Trello requires `npm init electron-app@latest` — used same template deps).
 - `src/shared/ipc.ts` — channel constants + typed `InvokeMap` and `EventMap` + `FocusGhostAPI` bridge contract.
 - `src/main/preload.ts` — contextBridge exposes `window.api` to renderer.
@@ -75,10 +84,9 @@ Build the FocusGhost desktop app strictly per the Trello board (`create-focusgho
 
 ## Backlog (P1)
 
-- Multi-session history view — list + detail with stats and ghost insights
-- Cross-session focus streak tracking
-- Custom app category editor UI
-- Windows + Linux regression test pass
+- Windows + Linux Wayland regression test pass
+- Pomodoro-style break suggestion after each completed session
+- Calendar integration (block out focus sessions on Google Calendar)
 
 ## Stretch (P2)
 

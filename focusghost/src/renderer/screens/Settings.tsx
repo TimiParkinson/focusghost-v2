@@ -170,6 +170,25 @@ export default function Settings(): JSX.Element {
           />
         </Row>
       </Section>
+
+      <Section label="DATA">
+        <button
+          className="btn w-full justify-between"
+          onClick={() => ui.setScreen('categories')}
+          data-testid="btn-open-categories"
+        >
+          <span>App categories</span>
+          <span className="text-white/40 text-xs">override how apps are classified →</span>
+        </button>
+        <button
+          className="btn w-full justify-between"
+          onClick={() => ui.setScreen('history')}
+          data-testid="btn-open-history"
+        >
+          <span>Session history & streaks</span>
+          <span className="text-white/40 text-xs">view past sessions →</span>
+        </button>
+      </Section>
     </div>
   );
 }

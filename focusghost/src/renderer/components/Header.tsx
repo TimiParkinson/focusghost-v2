@@ -10,8 +10,9 @@ export default function Header(): JSX.Element {
   const tabs: Array<{ id: Screen; label: string; testId: string }> = [
     { id: 'task', label: 'Task', testId: 'tab-task' },
     { id: 'active', label: 'Session', testId: 'tab-active' },
-    { id: 'chat', label: 'Ghost Chat', testId: 'tab-chat' },
+    { id: 'chat', label: 'Chat', testId: 'tab-chat' },
     { id: 'recap', label: 'Recap', testId: 'tab-recap' },
+    { id: 'history', label: 'History', testId: 'tab-history' },
   ];
 
   const cycleOpacity = async () => {

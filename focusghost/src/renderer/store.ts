@@ -13,7 +13,7 @@ import {
 } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/presets';
 
-export type Screen = 'task' | 'active' | 'chat' | 'recap' | 'settings';
+export type Screen = 'task' | 'active' | 'chat' | 'recap' | 'settings' | 'history' | 'categories';
 
 interface UIState {
   screen: Screen;
