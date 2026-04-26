@@ -9,7 +9,7 @@
   let streak = $state<StreakInfo | null>(null);
   let loading = $state(true);
   let openId = $state<string | null>(null);
-  let containerEl: HTMLDivElement;
+  let containerEl: HTMLDivElement | undefined = $state();
 
   function fmt(ms: number): string {
     const total = Math.max(0, Math.round(ms / 1000));
@@ -42,9 +42,10 @@
 
   $effect(() => {
     if (loading || !containerEl) return;
+    const root = containerEl;
     queueMicrotask(() => {
       gsap.fromTo(
-        containerEl.querySelectorAll('[data-anim]'),
+        root.querySelectorAll('[data-anim]'),
         { opacity: 0, y: 12 },
         { opacity: 1, y: 0, duration: 0.4, stagger: 0.04, ease: 'power3.out' },
       );

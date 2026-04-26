@@ -77,14 +77,12 @@ export const IPC = {
   WINDOW_TOGGLE_COLLAPSED: 'window:toggleCollapsed',
   WINDOW_COLLAPSED_STATE: 'window:collapsedState',
 
-  // Multi-surface window controller
+  // Window surface controller
   WINDOW_SET_MODE: 'window:setMode',
   WINDOW_MODE_CHANGED: 'window:modeChanged',
   WINDOW_EXPAND: 'window:expand',
   WINDOW_COLLAPSE: 'window:collapse',
   WINDOW_PIN: 'window:pin',
-  ANCHOR_HOVER: 'anchor:hover',
-  ANCHOR_CLICK: 'anchor:click',
   NUDGE_DISMISS: 'nudge:dismiss',
   NUDGE_OPEN_PANEL: 'nudge:openPanel',
 
@@ -116,8 +114,6 @@ export interface InvokeMap {
   [IPC.WINDOW_EXPAND]: { input: void; output: void };
   [IPC.WINDOW_COLLAPSE]: { input: void; output: void };
   [IPC.WINDOW_PIN]: { input: boolean; output: void };
-  [IPC.ANCHOR_HOVER]: { input: boolean; output: void };
-  [IPC.ANCHOR_CLICK]: { input: void; output: void };
   [IPC.NUDGE_DISMISS]: { input: { id?: string }; output: void };
   [IPC.NUDGE_OPEN_PANEL]: { input: { id?: string }; output: void };
   [IPC.DEV_SIMULATE_SWITCH]: { input: { app: string; title?: string }; output: void };
@@ -142,7 +138,7 @@ export interface EventMap {
 }
 
 // Bridge surface that preload exposes to renderer via contextBridge
-export type WindowMode = 'anchor' | 'panel' | 'inlineNudge' | 'popupNudge' | 'hidden';
+export type WindowMode = 'panel' | 'collapsed' | 'inlineNudge' | 'popupNudge' | 'hidden';
 
 export interface FocusGhostAPI {
   // invokes
@@ -166,8 +162,6 @@ export interface FocusGhostAPI {
   expand: () => Promise<void>;
   collapse: () => Promise<void>;
   pin: (pinned: boolean) => Promise<void>;
-  anchorHover: (hovering: boolean) => Promise<void>;
-  anchorClick: () => Promise<void>;
   dismissNudge: (id?: string) => Promise<void>;
   openPanelFromNudge: (id?: string) => Promise<void>;
   devSimulateSwitch: (app: string, title?: string) => Promise<void>;

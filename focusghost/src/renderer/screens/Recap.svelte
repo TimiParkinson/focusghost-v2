@@ -12,7 +12,7 @@
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   }
 
-  let containerEl: HTMLDivElement;
+  let containerEl: HTMLDivElement | undefined = $state();
 
   onMount(() => {
     if (containerEl) {

@@ -42,40 +42,48 @@
   </div>
 {:else}
   <div class="h-full overflow-y-auto px-5 py-5 space-y-4" data-testid="screen-active">
-    <InlineNudge />
-    <div class="flex items-start justify-between">
-      <div>
-        <div class="label">CURRENT TASK</div>
-        <div class="font-display text-lg mt-1" data-testid="active-task-name">{$stats.taskName}</div>
-      </div>
-      <div class="text-right">
-        <div class="label">REMAINING</div>
-        <div class="font-display text-3xl tabular-nums accent-text" data-testid="active-timer">
-          {fmt($stats.remainingMs)}
+    <section class="session-hero">
+      <div class="hero-top">
+        <div>
+          <div class="label">Current Task</div>
+          <div class="font-display text-xl mt-1" data-testid="active-task-name">{$stats.taskName}</div>
+        </div>
+        <div class="hero-timer">
+          <div class="label">Remaining</div>
+          <div class="font-display text-4xl tabular-nums accent-text" data-testid="active-timer">
+            {fmt($stats.remainingMs)}
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="card flex items-center gap-3">
-      <Ghost size={44} drifting={!inFocus} />
-      <div class="flex-1">
-        <div class="text-xs text-white/50">CURRENT APP</div>
-        <div class="text-sm" data-testid="current-app">{$stats.currentApp ?? '—'}</div>
+      <div class="focus-cluster">
+        <div class="focus-card card">
+          <div class="ghost-ring">
+            <Ghost size={48} drifting={!inFocus} />
+          </div>
+          <div class="focus-copy">
+            <div class="text-xs text-white/50">Current app</div>
+            <div class="text-base font-medium mt-1" data-testid="current-app">{$stats.currentApp ?? '—'}</div>
+            <div class="text-xs text-white/45 mt-1">Stay with the next obvious move.</div>
+          </div>
+          <div
+            class="pill {inFocus ? 'accent-bg-dim' : ''}"
+            style={inFocus
+              ? ''
+              : 'background: rgba(255,107,122,0.15); color: #FF6B7A'}
+            data-testid="app-badge"
+          >
+            {inFocus
+              ? 'FOCUS'
+              : $stats.currentAppCategory === AppCategory.DISTRACTION
+                ? 'DRIFT'
+                : 'NEUTRAL'}
+          </div>
+        </div>
+
+        <InlineNudge />
       </div>
-      <div
-        class="pill {inFocus ? 'accent-bg-dim' : ''}"
-        style={inFocus
-          ? ''
-          : 'background: rgba(255,107,122,0.15); color: #FF6B7A'}
-        data-testid="app-badge"
-      >
-        {inFocus
-          ? 'FOCUS'
-          : $stats.currentAppCategory === AppCategory.DISTRACTION
-            ? 'DRIFT'
-            : 'NEUTRAL'}
-      </div>
-    </div>
+    </section>
 
     <div class="grid grid-cols-3 gap-2">
       <div class="card" data-testid="stat-switches">
@@ -94,7 +102,7 @@
 
     <div class="card flex items-center justify-between" data-testid="drift-risk-card">
       <div>
-        <div class="label">DRIFT RISK</div>
+        <div class="label">Drift Risk</div>
         <div class="text-base font-semibold mt-1" style="color: {RISK_COLOR[$stats.driftRisk]}">
           {$stats.driftRisk}
         </div>
@@ -110,14 +118,14 @@
     </div>
 
     <div class="card">
-      <div class="label mb-2">RECENT ACTIVITY</div>
+      <div class="label mb-2">Recent Activity</div>
       {#if recent.length === 0}
         <div class="text-sm text-white/40">No activity yet</div>
       {:else}
         <div class="space-y-2">
           {#each recent as [app, e] (app)}
             <div class="flex items-center justify-between text-sm" data-testid="recent-{app}">
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 min-w-0">
                 <span
                   class="dot"
                   style="background: {e.category === AppCategory.DISTRACTION
@@ -126,7 +134,7 @@
                       ? 'var(--accent)'
                       : 'rgba(255,255,255,0.3)'}"
                 ></span>
-                <span>{app}</span>
+                <span class="truncate">{app}</span>
               </div>
               <div class="flex gap-3 text-white/60 text-xs tabular-nums">
                 <span>{fmt(e.totalMs)}</span>
@@ -152,3 +160,46 @@
     </div>
   </div>
 {/if}
+
+<style>
+  .session-hero {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .hero-timer {
+    text-align: right;
+  }
+
+  .focus-cluster {
+    display: grid;
+    gap: 0.85rem;
+  }
+
+  .focus-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.9rem;
+    align-items: center;
+  }
+
+  .ghost-ring {
+    display: grid;
+    place-items: center;
+    width: 3.3rem;
+    height: 3.3rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .focus-copy {
+    min-width: 0;
+  }
+</style>

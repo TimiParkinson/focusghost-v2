@@ -1,22 +1,17 @@
-// Multi-surface window controller for FocusGhost.
-// Owns 3 BrowserWindows (anchor, panel, nudge) and the WindowMode FSM.
-// All OS-level window behavior lives here — renderer only requests transitions.
 import { BrowserWindow, screen as electronScreen } from 'electron';
-import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { IPC, type WindowMode } from '../shared/ipc';
 import type { AppSettings, NudgePayload, SessionState } from '../shared/types';
 
-const ANCHOR_SIZE = 72;
-const ANCHOR_MARGIN = 24;
-const PANEL_SIZE = { width: 480, height: 720 };
+const PANEL_MARGIN = 24;
+const PANEL_SIZE = { width: 620, height: 720 };
+const COLLAPSED_BAR_SIZE = { width: 620, height: 72 };
 const NUDGE_SIZE = { width: 360, height: 160 };
-const COLLAPSED_BAR_SIZE = { width: 480, height: 44 };
 const BLUR_COLLAPSE_DEBOUNCE_MS = 180;
 
 interface ControllerOpts {
-  rendererUrl: string | null; // dev URL or null for prod file path
-  rendererFile: string; // absolute path to packaged index.html
+  rendererUrl: string | null;
+  rendererFile: string;
   preloadPath: string;
 }
 
@@ -27,18 +22,17 @@ function getPopupDwellMs(text: string): number {
 
 export class WindowController extends EventEmitter {
   private opts: ControllerOpts;
-  private mode: WindowMode = 'anchor';
+  private mode: WindowMode = 'panel';
   private settings: AppSettings;
   private pinned = false;
-  private anchorPassive = true;
   private collapsedBar = false;
 
-  private anchor: BrowserWindow | null = null;
   private panel: BrowserWindow | null = null;
   private nudge: BrowserWindow | null = null;
 
   private blurCollapseTimer: NodeJS.Timeout | null = null;
   private nudgeDismissTimer: NodeJS.Timeout | null = null;
+  private panelOrigin: { x: number; y: number } | null = null;
 
   constructor(opts: ControllerOpts, settings: AppSettings) {
     super();
@@ -46,28 +40,40 @@ export class WindowController extends EventEmitter {
     this.settings = settings;
   }
 
-  /** Boot the anchor + panel windows. Nudge is created lazily. */
   init(): void {
-    this.createAnchor();
     this.createPanel();
     this.setMode('panel');
   }
 
   updateSettings(next: AppSettings): void {
     this.settings = next;
-    if (this.panel) this.panel.setOpacity(next.opacity);
-    if (this.panel) this.panel.setAlwaysOnTop(next.alwaysOnTop);
+    if (this.panel) {
+      this.panel.setOpacity(next.opacity);
+      this.panel.setAlwaysOnTop(this.collapsedBar ? true : next.alwaysOnTop);
+    }
   }
 
-  // ---- Public API ----
   getMode(): WindowMode {
     return this.mode;
   }
 
   setMode(mode: WindowMode): void {
-    if (this.mode === mode) return;
+    if (!this.panel) return;
     this.mode = mode;
-    this.applyMode();
+
+    if (mode === 'collapsed') {
+      this.setCollapsedBar(true);
+      this.showPanel(false);
+    } else if (mode === 'hidden') {
+      this.panel.hide();
+      if (this.nudge && !this.nudge.isDestroyed()) this.nudge.hide();
+    } else {
+      if (mode === 'panel' || mode === 'inlineNudge' || mode === 'popupNudge') {
+        this.setCollapsedBar(false);
+      }
+      this.showPanel(mode !== 'inlineNudge');
+    }
+
     this.emit('mode', mode);
   }
 
@@ -76,7 +82,7 @@ export class WindowController extends EventEmitter {
   }
 
   collapse(): void {
-    this.setMode('anchor');
+    this.setMode('collapsed');
   }
 
   setPinned(pinned: boolean): void {
@@ -85,39 +91,28 @@ export class WindowController extends EventEmitter {
 
   setCollapsedBar(on: boolean): void {
     this.collapsedBar = on;
-    if (this.mode !== 'panel') return;
     if (!this.panel) return;
+
     const size = on ? COLLAPSED_BAR_SIZE : PANEL_SIZE;
-    this.panel.setSize(size.width, size.height, true);
+    this.panel.setContentSize(size.width, size.height);
     this.panel.setResizable(!on);
+    this.panel.setMinimumSize(COLLAPSED_BAR_SIZE.width, COLLAPSED_BAR_SIZE.height);
+    this.panel.setAlwaysOnTop(on ? true : this.settings.alwaysOnTop);
+    this.positionPanel();
   }
 
-  /** Renderer reports anchor hover; switch interactivity. */
-  setAnchorHover(hovering: boolean): void {
-    if (!this.anchor) return;
-    this.anchorPassive = !hovering;
-    // forward mouse events when passive so the user can click through.
-    this.anchor.setIgnoreMouseEvents(false, { forward: true });
-  }
-
-  anchorClicked(): void {
-    this.expand();
-  }
-
-  /** Display a nudge as a separate transient window. Auto-dismisses based on text length. */
   showNudge(payload: NudgePayload): void {
     if (this.nudgeDismissTimer) clearTimeout(this.nudgeDismissTimer);
     if (!this.nudge) this.createNudge();
     if (!this.nudge) return;
 
-    this.positionNudgeNearAnchor();
-    // Push payload to nudge renderer
+    this.positionNudgeNearPanel();
     this.nudge.webContents.send(IPC.NUDGE_TRIGGER, payload);
     this.nudge.showInactive();
-    this.setMode('popupNudge');
+    this.mode = 'popupNudge';
+    this.emit('mode', 'popupNudge');
 
-    const dwell = getPopupDwellMs(payload.text);
-    this.nudgeDismissTimer = setTimeout(() => this.dismissNudge(), dwell);
+    this.nudgeDismissTimer = setTimeout(() => this.dismissNudge(), getPopupDwellMs(payload.text));
   }
 
   pauseNudgeDismiss(): void {
@@ -138,136 +133,56 @@ export class WindowController extends EventEmitter {
       this.nudgeDismissTimer = null;
     }
     if (this.nudge && !this.nudge.isDestroyed()) this.nudge.hide();
-    if (this.mode === 'popupNudge') this.setMode(this.panel?.isVisible() ? 'panel' : 'anchor');
-  }
-
-  reactToSession(state: SessionState): void {
-    // Window behaviour reacts to session state.
-    if (state === 'IDLE') this.setMode('anchor');
-    else if (state === 'ACTIVE' || state === 'RECAP') this.setMode('panel');
-    else if (state === 'INACTIVE' && this.mode === 'panel') {
-      // keep panel but the renderer can show idle overlay; do nothing window-side
+    if (this.mode === 'popupNudge') {
+      this.mode = this.collapsedBar ? 'collapsed' : 'panel';
+      this.emit('mode', this.mode);
     }
   }
 
-  /** Used by main.ts when broadcasting events that should reach the panel renderer. */
+  reactToSession(state: SessionState): void {
+    if (state === 'ACTIVE' || state === 'RECAP') this.setMode('panel');
+    else if (state === 'INACTIVE' && this.mode === 'panel') this.setMode('collapsed');
+    else if (state === 'IDLE' && !this.panel?.isVisible()) this.setMode('panel');
+  }
+
   panelWebContents() {
     return this.panel?.webContents ?? null;
   }
 
   destroy(): void {
-    [this.anchor, this.panel, this.nudge].forEach((w) => {
+    [this.panel, this.nudge].forEach((w) => {
       if (w && !w.isDestroyed()) w.destroy();
     });
-    this.anchor = this.panel = this.nudge = null;
+    this.panel = this.nudge = null;
   }
 
-  // ---- internals ----
-  private applyMode(): void {
-    if (!this.anchor || !this.panel) return;
-    switch (this.mode) {
-      case 'anchor':
-        this.anchor.show();
-        this.fadePanelOut();
-        if (this.nudge && !this.nudge.isDestroyed()) this.nudge.hide();
-        break;
-      case 'panel':
-        this.fadePanelIn();
-        // Keep anchor visible behind panel? Hide it for clarity on macOS.
-        this.anchor.hide();
-        break;
-      case 'popupNudge':
-        // anchor stays passive; panel state preserved.
-        break;
-      case 'inlineNudge':
-        // managed inside panel renderer; nothing OS-level needed.
-        break;
-      case 'hidden':
-        this.anchor.hide();
-        this.panel.hide();
-        if (this.nudge && !this.nudge.isDestroyed()) this.nudge.hide();
-        break;
-    }
-  }
-
-  private fadePanelIn(): void {
+  private showPanel(focus: boolean): void {
     if (!this.panel) return;
-    this.positionPanelAtAnchor();
+    this.positionPanel();
     if (!this.panel.isVisible()) this.panel.show();
-    this.panel.focus();
+    if (focus) this.panel.focus();
     this.panel.setOpacity(this.settings.opacity);
-  }
-
-  private fadePanelOut(): void {
-    if (!this.panel) return;
-    if (this.panel.isVisible()) this.panel.hide();
-  }
-
-  private createAnchor(): void {
-    const display = electronScreen.getPrimaryDisplay();
-    const saved = this.settings.anchorPosition;
-    const x = saved?.x ??
-      Math.round(display.workArea.x + display.workArea.width - ANCHOR_SIZE - ANCHOR_MARGIN);
-    const y = saved?.y ?? Math.round(display.workArea.y + ANCHOR_MARGIN);
-
-    this.anchor = new BrowserWindow({
-      width: ANCHOR_SIZE,
-      height: ANCHOR_SIZE,
-      x,
-      y,
-      frame: false,
-      transparent: true,
-      backgroundColor: '#00000000',
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      resizable: false,
-      movable: true,
-      hasShadow: false,
-      fullscreenable: false,
-      minimizable: false,
-      maximizable: false,
-      focusable: true,
-      webPreferences: {
-        preload: this.opts.preloadPath,
-        contextIsolation: true,
-        sandbox: false,
-      },
-    });
-    this.anchor.setAlwaysOnTop(true, 'floating');
-    this.anchor.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    if (process.platform === 'darwin') this.anchor.setHiddenInMissionControl?.(true);
-    // start passive (click-through)
-    this.anchor.setIgnoreMouseEvents(false, { forward: true });
-
-    // Persist anchor position on move (debounced to avoid spamming electron-store).
-    let moveTimer: NodeJS.Timeout | null = null;
-    this.anchor.on('move', () => {
-      if (moveTimer) clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => {
-        const b = this.anchor?.getBounds();
-        if (!b) return;
-        this.emit('anchor:moved', { x: b.x, y: b.y });
-      }, 250);
-    });
-
-    void this.loadSurface(this.anchor, 'anchor');
   }
 
   private createPanel(): void {
     const display = electronScreen.getPrimaryDisplay();
-    const x = Math.round(
-      display.workArea.x + display.workArea.width - PANEL_SIZE.width - ANCHOR_MARGIN,
-    );
-    const y = Math.round(display.workArea.y + ANCHOR_MARGIN + ANCHOR_SIZE + 8);
+    const saved = this.settings.anchorPosition;
+    const x =
+      saved?.x ??
+      Math.round(display.workArea.x + display.workArea.width - PANEL_SIZE.width - PANEL_MARGIN);
+    const y = saved?.y ?? Math.round(display.workArea.y + PANEL_MARGIN);
+    this.panelOrigin = { x, y };
 
     this.panel = new BrowserWindow({
+      useContentSize: true,
       width: PANEL_SIZE.width,
       height: PANEL_SIZE.height,
       x,
       y,
-      frame: false,
-      transparent: true,
-      backgroundColor: '#00000000',
+      frame: true,
+      titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+      transparent: false,
+      backgroundColor: '#10171d',
       alwaysOnTop: this.settings.alwaysOnTop,
       skipTaskbar: false,
       resizable: true,
@@ -279,25 +194,32 @@ export class WindowController extends EventEmitter {
         sandbox: false,
       },
     });
+
+    this.panel.setMinimumSize(COLLAPSED_BAR_SIZE.width, COLLAPSED_BAR_SIZE.height);
     this.panel.setOpacity(this.settings.opacity);
     if (process.platform === 'darwin') this.panel.setHiddenInMissionControl?.(true);
-    void this.loadSurface(this.panel, 'panel');
-
+    this.panel.on('move', () => {
+      if (!this.panel) return;
+      const { x: nextX, y: nextY } = this.panel.getBounds();
+      this.panelOrigin = { x: nextX, y: nextY };
+      this.emit('panel:moved', this.panelOrigin);
+    });
     this.panel.on('blur', () => {
       if (this.pinned) return;
-      if (this.mode !== 'panel') return;
+      if (this.mode !== 'panel' && this.mode !== 'inlineNudge') return;
       if (this.blurCollapseTimer) clearTimeout(this.blurCollapseTimer);
       this.blurCollapseTimer = setTimeout(() => {
         if (this.panel && !this.panel.isFocused()) this.collapse();
       }, BLUR_COLLAPSE_DEBOUNCE_MS);
     });
-
     this.panel.on('focus', () => {
       if (this.blurCollapseTimer) {
         clearTimeout(this.blurCollapseTimer);
         this.blurCollapseTimer = null;
       }
     });
+
+    void this.loadSurface(this.panel, 'panel');
   }
 
   private createNudge(): void {
@@ -326,41 +248,43 @@ export class WindowController extends EventEmitter {
     void this.loadSurface(this.nudge, 'nudge');
   }
 
-  private positionPanelAtAnchor(): void {
-    if (!this.anchor || !this.panel) return;
-    const a = this.anchor.getBounds();
+  private positionPanel(): void {
+    if (!this.panel) return;
     const display = electronScreen.getPrimaryDisplay();
-    const x = Math.min(
-      a.x + a.width - PANEL_SIZE.width,
-      display.workArea.x + display.workArea.width - PANEL_SIZE.width - ANCHOR_MARGIN,
+    const size = this.collapsedBar ? COLLAPSED_BAR_SIZE : PANEL_SIZE;
+    const origin = this.panelOrigin ?? {
+      x: display.workArea.x + display.workArea.width - size.width - PANEL_MARGIN,
+      y: display.workArea.y + PANEL_MARGIN,
+    };
+
+    const x = Math.max(
+      display.workArea.x + PANEL_MARGIN,
+      Math.min(origin.x, display.workArea.x + display.workArea.width - size.width - PANEL_MARGIN),
     );
-    const y = a.y + a.height + 8;
-    this.panel.setBounds({
-      x: Math.max(display.workArea.x + ANCHOR_MARGIN, x),
-      y,
-      width: PANEL_SIZE.width,
-      height: PANEL_SIZE.height,
-    });
+    const y = Math.max(
+      display.workArea.y + PANEL_MARGIN,
+      Math.min(origin.y, display.workArea.y + display.workArea.height - size.height - PANEL_MARGIN),
+    );
+
+    this.panel.setBounds({ x, y, width: size.width, height: size.height });
   }
 
-  private positionNudgeNearAnchor(): void {
-    if (!this.anchor || !this.nudge) return;
-    const a = this.anchor.getBounds();
+  private positionNudgeNearPanel(): void {
+    if (!this.panel || !this.nudge) return;
+    const p = this.panel.getBounds();
     const display = electronScreen.getPrimaryDisplay();
-    const x = Math.min(
-      a.x + a.width - NUDGE_SIZE.width,
-      display.workArea.x + display.workArea.width - NUDGE_SIZE.width - ANCHOR_MARGIN,
+    const x = Math.max(
+      display.workArea.x + PANEL_MARGIN,
+      Math.min(p.x + p.width - NUDGE_SIZE.width, display.workArea.x + display.workArea.width - NUDGE_SIZE.width - PANEL_MARGIN),
     );
-    const y = a.y + a.height + 8;
-    this.nudge.setBounds({
-      x: Math.max(display.workArea.x + ANCHOR_MARGIN, x),
-      y,
-      width: NUDGE_SIZE.width,
-      height: NUDGE_SIZE.height,
-    });
+    const y = Math.min(
+      p.y + p.height + 12,
+      display.workArea.y + display.workArea.height - NUDGE_SIZE.height - PANEL_MARGIN,
+    );
+    this.nudge.setBounds({ x, y, width: NUDGE_SIZE.width, height: NUDGE_SIZE.height });
   }
 
-  private async loadSurface(w: BrowserWindow, surface: 'anchor' | 'panel' | 'nudge'): Promise<void> {
+  private async loadSurface(w: BrowserWindow, surface: 'panel' | 'nudge'): Promise<void> {
     if (this.opts.rendererUrl) {
       await w.loadURL(`${this.opts.rendererUrl}?surface=${surface}`);
     } else {

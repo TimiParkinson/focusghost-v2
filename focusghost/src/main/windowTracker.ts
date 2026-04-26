@@ -3,7 +3,7 @@
 import { EventEmitter } from 'node:events';
 import type { ActiveWindowInfo } from '../shared/types';
 
-const POLL_MS = 1500;
+const POLL_MS = 500;
 
 type ActiveWinFn = () => Promise<{ owner?: { name?: string }; title?: string } | undefined>;
 

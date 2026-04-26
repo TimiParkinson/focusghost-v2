@@ -27,9 +27,14 @@
   });
 
   async function start(): Promise<void> {
+    console.log('Starting session with task:', task, 'and duration:', duration);
     if (!task.trim()) return;
     resetChat();
-    await window.api.sessionStart({ taskName: task.trim(), durationMin: duration, startedAt: Date.now() });
+    await window.api.sessionStart({
+      taskName: task.trim(),
+      durationMin: duration,
+      startedAt: Date.now(),
+    });
     screen.set('active');
   }
 </script>
@@ -47,7 +52,7 @@
   <input
     bind:this={inputEl}
     data-testid="input-task"
-    class="w-full max-w-sm bg-ink-700 border border-white/10 rounded-lg px-4 py-3 text-base outline-none focus:accent-border focus:border-2"
+    class="w-full no-drag max-w-sm bg-ink-700 border border-white/10 rounded-lg px-4 py-3 text-base outline-none focus:accent-border focus:border-2"
     placeholder="e.g., refactor session machine"
     bind:value={task}
     onkeydown={(e) => {
@@ -59,7 +64,9 @@
       <button
         data-testid="duration-{d}"
         onclick={() => (duration = d)}
-        class="pill border {duration === d ? 'accent-bg-dim accent-border' : 'border-white/10 text-white/60 hover:text-white'}"
+        class="pill no-drag border {duration === d
+          ? 'accent-bg-dim accent-border'
+          : 'border-white/10 text-white/60 hover:text-white'}"
       >
         {d}m
       </button>
@@ -67,7 +74,7 @@
   </div>
   <button
     data-testid="btn-start-session"
-    class="btn btn-primary !px-8 !py-3"
+    class="btn no-drag btn-primary !px-8 !py-3"
     disabled={!task.trim()}
     onclick={start}
   >

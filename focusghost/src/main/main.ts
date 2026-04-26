@@ -1,5 +1,5 @@
 // Electron main entry. Wires all modules: tracker, FSM, stats, nudge, stuck, gemini, IPC.
-// Window architecture (anchor/panel/nudge) is delegated to WindowController.
+// Window architecture is one primary panel window plus an optional popup nudge window.
 import { app, ipcMain } from 'electron';
 import path from 'node:path';
 import { config as loadDotenv } from 'dotenv';
@@ -74,6 +74,13 @@ let demoCtl: { start: () => void; stop: () => void } | null = null;
 function broadcast<T>(channel: string, payload: T): void {
   const wc = controller?.panelWebContents();
   wc?.send(channel, payload);
+}
+
+function setCollapsedState(next: boolean): boolean {
+  collapsedBar = next;
+  if (next) controller?.collapse();
+  else controller?.expand();
+  return collapsedBar;
 }
 
 function buildSnapshot(): SessionStatsSnapshot {
@@ -306,7 +313,9 @@ inactivity.on('resume', () => machine.send({ type: 'FOCUS' }));
 
 nudges.on('nudge', (n: { reason: any }) => {
   void fireNudge(n.reason).then((payload) => {
-    if (payload) controller?.showNudge(payload);
+    if (!payload) return;
+    controller?.setMode('inlineNudge');
+    if (getSettings().sensitivity === 'strict') controller?.showNudge(payload);
   });
 });
 
@@ -391,19 +400,14 @@ ipcMain.handle(IPC.WINDOW_SET_ALWAYS_ON_TOP, (_e, v: boolean) => {
   controller?.updateSettings(getSettings());
 });
 ipcMain.handle(IPC.WINDOW_TOGGLE_COLLAPSED, () => {
-  collapsedBar = !collapsedBar;
-  controller?.setCollapsedBar(collapsedBar);
-  broadcast(IPC.WINDOW_COLLAPSED_STATE, collapsedBar);
-  return collapsedBar;
+  return setCollapsedState(!collapsedBar);
 });
 
-// ---- multi-surface window controller ----
+// ---- window controller ----
 ipcMain.handle(IPC.WINDOW_SET_MODE, (_e, mode: WindowMode) => controller?.setMode(mode));
-ipcMain.handle(IPC.WINDOW_EXPAND, () => controller?.expand());
-ipcMain.handle(IPC.WINDOW_COLLAPSE, () => controller?.collapse());
+ipcMain.handle(IPC.WINDOW_EXPAND, () => setCollapsedState(false));
+ipcMain.handle(IPC.WINDOW_COLLAPSE, () => setCollapsedState(true));
 ipcMain.handle(IPC.WINDOW_PIN, (_e, pinned: boolean) => controller?.setPinned(pinned));
-ipcMain.handle(IPC.ANCHOR_HOVER, (_e, hovering: boolean) => controller?.setAnchorHover(hovering));
-ipcMain.handle(IPC.ANCHOR_CLICK, () => controller?.anchorClicked());
 ipcMain.handle(IPC.NUDGE_DISMISS, () => controller?.dismissNudge());
 ipcMain.handle(IPC.NUDGE_OPEN_PANEL, () => {
   controller?.dismissNudge();
@@ -424,26 +428,23 @@ function bootController(): void {
     {
       rendererUrl,
       rendererFile: path.join(__dirname, '../renderer/index.html'),
-      preloadPath: path.join(__dirname, '../preload/preload.js'),
+      preloadPath: path.join(__dirname, '../preload/preload.mjs'),
     },
     settings,
   );
   controller.init();
-  controller.on('mode', (m) => broadcast(IPC.WINDOW_MODE_CHANGED, m));
-  controller.on('anchor:moved', (pos: { x: number; y: number }) => {
+  controller.on('mode', (m: WindowMode) => {
+    collapsedBar = m === 'collapsed';
+    broadcast(IPC.WINDOW_MODE_CHANGED, m);
+    broadcast(IPC.WINDOW_COLLAPSED_STATE, collapsedBar);
+  });
+  controller.on('panel:moved', (pos: { x: number; y: number }) => {
     updateSettings({ anchorPosition: pos });
   });
 }
 
 // React to session FSM transitions in window-land.
 machine.on('change', (next: SessionState) => controller?.reactToSession(next));
-
-// When NudgeEngine emits a nudge in main, push it to the popup window.
-nudges.on('nudge', (n: { reason: any }) => {
-  void fireNudge(n.reason).then((payload) => {
-    if (payload) controller?.showNudge(payload);
-  });
-});
 
 app.whenReady().then(bootController);
 app.on('window-all-closed', () => {

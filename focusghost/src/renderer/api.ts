@@ -1,6 +1,6 @@
 // Thin wrapper around window.api with helpers + a browser-only mock so the
 // renderer can be developed/previewed in a plain Vite dev server without Electron.
-import type { FocusGhostAPI } from '../shared/ipc';
+import type { FocusGhostAPI, WindowMode } from '../shared/ipc';
 import {
   AppCategory,
   DriftRisk,
@@ -39,6 +39,20 @@ export function ensureBrowserMockApi(): void {
   const sessions: SessionRecord[] = [];
   const chat: ChatMessage[] = [];
   const categoryOverrides: Record<string, AppCategory> = {};
+  let collapsedState = false;
+  let mode: WindowMode = 'panel';
+
+  function syncWindowState(next: { collapsed?: boolean; mode?: WindowMode }): void {
+    if (typeof next.collapsed === 'boolean') {
+      collapsedState = next.collapsed;
+      document.body.classList.toggle('collapsed', collapsedState);
+      emit('window:collapsedState', collapsedState);
+    }
+    if (next.mode) {
+      mode = next.mode;
+      emit('window:modeChanged', mode);
+    }
+  }
 
   function blankSnap(): SessionStatsSnapshot {
     return {
@@ -227,19 +241,21 @@ export function ensureBrowserMockApi(): void {
     setOpacity: async () => {},
     setAlwaysOnTop: async () => {},
     toggleCollapsed: async () => {
-      const next = !document.body.classList.contains('collapsed');
-      document.body.classList.toggle('collapsed', next);
-      emit('window:collapsedState', next);
+      const next = !collapsedState;
+      syncWindowState({ collapsed: next, mode: next ? mode : 'panel' });
       return next;
     },
-    setMode: async (mode) => emit('window:modeChanged', mode),
-    expand: async () => emit('window:modeChanged', 'panel'),
-    collapse: async () => emit('window:modeChanged', 'anchor'),
+    setMode: async (nextMode) => {
+      syncWindowState({
+        collapsed: nextMode === 'collapsed' ? true : nextMode === 'hidden' ? collapsedState : false,
+        mode: nextMode,
+      });
+    },
+    expand: async () => syncWindowState({ collapsed: false, mode: 'panel' }),
+    collapse: async () => syncWindowState({ collapsed: true, mode: 'collapsed' }),
     pin: async () => {},
-    anchorHover: async () => {},
-    anchorClick: async () => emit('window:modeChanged', 'panel'),
     dismissNudge: async () => {},
-    openPanelFromNudge: async () => emit('window:modeChanged', 'panel'),
+    openPanelFromNudge: async () => syncWindowState({ collapsed: false, mode: 'panel' }),
     devSimulateSwitch: async (app) => {
       snap = {
         ...snap,

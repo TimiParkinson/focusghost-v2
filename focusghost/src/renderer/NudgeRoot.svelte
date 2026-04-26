@@ -7,7 +7,7 @@
   import type { NudgePayload } from '../shared/types';
 
   let nudge = $state<NudgePayload | null>(null);
-  let cardEl: HTMLDivElement;
+  let cardEl: HTMLDivElement | undefined = $state();
   let unsubs: Array<() => void> = [];
 
   onMount(() => {
