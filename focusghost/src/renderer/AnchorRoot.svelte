@@ -1,6 +1,6 @@
 <script lang="ts">
   // AnchorRoot — passive ambient pill in the corner. Click expands to panel.
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import gsap from 'gsap';
   import Ghost from './components/Ghost.svelte';
   import { sessionState, settings } from './stores';
@@ -17,12 +17,31 @@
       settings.set(s);
       applyAccentClass(s.accent);
     });
+
     unsubs.push(window.api.onSessionState((s) => sessionState.set(s)));
     unsubs.push(window.api.onStatsUpdate((s) => stats.set(s)));
     unsubs.push(
       window.api.onSettingsChanged((s) => {
         settings.set(s);
         applyAccentClass(s.accent);
+      }),
+    );
+
+    unsubs.push(
+      window.api.onModeChanged(async (mode) => {
+        if (mode === 'anchor') {
+          await tick();
+          resetAnchorVisual();
+
+          const root = document.querySelector('.anchor-root');
+          if (root) {
+            gsap.fromTo(
+              root,
+              { scale: 0.88, opacity: 0.5 },
+              { scale: 1, opacity: 1, duration: 0.2, ease: 'power2.out' },
+            );
+          }
+        }
       }),
     );
   });
@@ -56,9 +75,10 @@
   }
 
   function handleClick(): void {
-    // morph: tween the disc out before main collapses the window.
     const disc = document.querySelector('.anchor-disc');
     if (disc) {
+      gsap.killTweensOf(disc);
+      gsap.set(disc, { scale: 1, opacity: 1 });
       gsap.to(disc, {
         scale: 1.35,
         opacity: 0,
@@ -68,6 +88,14 @@
       });
     } else {
       void window.api.anchorClick();
+    }
+  }
+
+  function resetAnchorVisual(): void {
+    const disc = document.querySelector('.anchor-disc');
+    if (disc) {
+      gsap.killTweensOf(disc);
+      gsap.set(disc, { scale: 1, opacity: 1 });
     }
   }
 
@@ -87,7 +115,7 @@
 >
   <div class="anchor-pulse" bind:this={pulseEl}></div>
   <div class="anchor-disc no-drag">
-    <Ghost size={32} drifting={drifting} state={$sessionState} />
+    <Ghost size={32} {drifting} state={$sessionState} />
   </div>
   {#if $sessionState === SessionState.ACTIVE && $stats}
     <div class="anchor-tag" data-testid="anchor-task">
@@ -110,8 +138,8 @@
   }
   .anchor-root {
     position: relative;
-    width: 56px;
-    height: 56px;
+    width: 72px;
+    height: 72px;
     display: flex;
     align-items: center;
     justify-content: center;

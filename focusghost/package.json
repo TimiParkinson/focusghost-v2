@@ -18,7 +18,13 @@
     "make:win": "yarn build && electron-builder --win",
     "make:linux": "yarn build && electron-builder --linux"
   },
-  "keywords": ["electron", "focus", "productivity", "ai", "svelte"],
+  "keywords": [
+    "electron",
+    "focus",
+    "productivity",
+    "ai",
+    "svelte"
+  ],
   "author": "FocusGhost Team",
   "license": "MIT",
   "devDependencies": {
@@ -27,7 +33,7 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "autoprefixer": "^10.4.17",
-    "electron": "^30.0.0",
+    "electron": "^30.5.1",
     "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
     "eslint": "^8.56.0",

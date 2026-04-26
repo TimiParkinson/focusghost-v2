@@ -7,7 +7,7 @@ import { EventEmitter } from 'node:events';
 import { IPC, type WindowMode } from '../shared/ipc';
 import type { AppSettings, NudgePayload, SessionState } from '../shared/types';
 
-const ANCHOR_SIZE = 56;
+const ANCHOR_SIZE = 72;
 const ANCHOR_MARGIN = 24;
 const PANEL_SIZE = { width: 480, height: 720 };
 const NUDGE_SIZE = { width: 360, height: 160 };
@@ -50,7 +50,7 @@ export class WindowController extends EventEmitter {
   init(): void {
     this.createAnchor();
     this.createPanel();
-    this.setMode('anchor');
+    this.setMode('panel');
   }
 
   updateSettings(next: AppSettings): void {
@@ -97,7 +97,7 @@ export class WindowController extends EventEmitter {
     if (!this.anchor) return;
     this.anchorPassive = !hovering;
     // forward mouse events when passive so the user can click through.
-    this.anchor.setIgnoreMouseEvents(this.anchorPassive, { forward: true });
+    this.anchor.setIgnoreMouseEvents(false, { forward: true });
   }
 
   anchorClicked(): void {
@@ -237,7 +237,7 @@ export class WindowController extends EventEmitter {
     this.anchor.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     if (process.platform === 'darwin') this.anchor.setHiddenInMissionControl?.(true);
     // start passive (click-through)
-    this.anchor.setIgnoreMouseEvents(true, { forward: true });
+    this.anchor.setIgnoreMouseEvents(false, { forward: true });
 
     // Persist anchor position on move (debounced to avoid spamming electron-store).
     let moveTimer: NodeJS.Timeout | null = null;
