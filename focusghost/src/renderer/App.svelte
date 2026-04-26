@@ -145,11 +145,15 @@
     offs.push(
       window.api.onCollapsedState((next) => {
         collapsed.set(next);
+        if (!next) windowMode.set('panel');
       }),
     );
     offs.push(
       window.api.onModeChanged((mode) => {
         windowMode.set(mode);
+        if (mode === 'panel' || mode === 'inlineNudge' || mode === 'popupNudge') {
+          collapsed.set(false);
+        }
       }),
     );
 

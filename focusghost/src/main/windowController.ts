@@ -49,7 +49,7 @@ export class WindowController extends EventEmitter {
     this.settings = next;
     if (this.panel) {
       this.panel.setOpacity(next.opacity);
-      this.panel.setAlwaysOnTop(this.collapsedBar ? true : next.alwaysOnTop);
+      this.panel.setAlwaysOnTop(true, 'floating');
     }
   }
 
@@ -97,7 +97,7 @@ export class WindowController extends EventEmitter {
     this.panel.setContentSize(size.width, size.height);
     this.panel.setResizable(!on);
     this.panel.setMinimumSize(COLLAPSED_BAR_SIZE.width, COLLAPSED_BAR_SIZE.height);
-    this.panel.setAlwaysOnTop(on ? true : this.settings.alwaysOnTop);
+    this.panel.setAlwaysOnTop(true, 'floating');
     this.positionPanel();
   }
 
@@ -183,7 +183,7 @@ export class WindowController extends EventEmitter {
       titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
       transparent: false,
       backgroundColor: '#10171d',
-      alwaysOnTop: this.settings.alwaysOnTop,
+      alwaysOnTop: true,
       skipTaskbar: false,
       resizable: true,
       show: false,

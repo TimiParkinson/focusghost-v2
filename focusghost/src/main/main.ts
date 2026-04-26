@@ -80,6 +80,8 @@ function setCollapsedState(next: boolean): boolean {
   collapsedBar = next;
   if (next) controller?.collapse();
   else controller?.expand();
+
+  broadcast(IPC.WINDOW_COLLAPSED_STATE, collapsedBar);
   return collapsedBar;
 }
 
